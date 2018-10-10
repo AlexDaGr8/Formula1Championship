@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<body>
+    <script src='https://d3js.org/d3.v5.min.js'></script>
+    <script src="http://colorbrewer2.org/export/colorbrewer.js"></script>
+    <script>
+        var margin = {left: 20, top: 20, right: 20, bottom: 20},
+            width = 960 - margin.left - margin.right,
+            height = 500 - margin.top - margin.bottom;
+        var svg = d3.select('body').append('svg')
+            .attr('width', width + margin.left + margin.right)
+            .attr('height', height + margin.top + margin.bottom)
+            .append('g')
+            .attr('transform', 'translate(' + [margin.left, margin.top] + ')');
+
+        var x = d3.scaleBand()
+            .range([0,width])
+            .padding(.05);
+
+        var y = d3.scaleBand()
+            .range([height,0])
+            .padding(.05);
+
+        var places = {
+            1: 25,
+            2: 22,
+            3: 20,
+            4: 18,
+            5: 16,
+            6: 15,
+            7: 14,
+            8: 13,
+            9: 12,
+            10: 11,
+            11: 10,
+            12: 9,
+            13: 8,
+            14: 7,
+            15: 6,
+            16: 5,
+            17: 4,
+            18: 3,
+            19: 2,
+            20: 1
+        }
+        d3.json('https://spreadsheets.google.com/feeds/list/1RHNp6_S_-WrX9z4-ZFYtMC74gTJEKMX1JJXNsmmixj8/od6/public/values?alt=json')
+            .then(data => {
+                var allRaces = [];
+                var drivers = [];
+                data.feed.entry.forEach((d,i) => {
+                    var content = d.content.$t.replace(/\s/g, '').split(',');
+                    var races = [];
+                    var totalPoints = 0;
+                    var dvr = d.title.$t;
+                    content.forEach(v => {
+                        var split = v.split(':');
+                        if (split[1] > 0 && split[0].indexOf('points') < 0) {
+                            totalPoints += +places[+split[1]];
+                            races.push({
+                                driver: dvr,
+                                name: split[0],
+                                position: split[1],
+                                points: +places[+split[1]],
+                                totalPoints: totalPoints,
+                                rank: 0
+                            })
+                            allRaces.push({
+                                name: split[0],
+                                position: split[1],
+                                points: +places[+split[1]],
+                                totalPoints: totalPoints,
+                                driver: dvr
+                            })
+                        }
+                    });
+                    drivers.push({
+                        name: d.title.$t,
+                        races: races
+                    })
+                })
+                var raceNames = new Set(allRaces.map(d => d.name));
+                raceNames.forEach(d => {
+                    var filter = allRaces.filter(v => v.name == d)
+                    var sorted = filter.sort((a,b) => b.totalPoints - a.totalPoints);
+                    for (var i = 0; i < sorted.length; i++) {
+                        sorted[i].rank = i + 1;
+                    }
+                    sorted.forEach(sort => {
+                        var indDvr = drivers.filter(v => v.name === sort.driver)[0];
+                        var thisRace = indDvr.races.filter(v => v.name === sort.name)[0];
+                        thisRace.rank = sort.rank;
+                    })
+                })
+                drivers.forEach(d => {
+                    var lastRace = d.races[d.races.length - 1];
+                    d.currentRank = lastRace.rank;
+                    d.currentRace = lastRace.name;
+                })
+
+                var nums = [];
+                for (var i = 20; i > 0; i--) {
+                    nums.push(i);
+                }
+                x.domain(allRaces.map(d => d.name));
+                y.domain(nums);
+
+                var color = d3.interpolateRainbow;
+
+                var line = d3.line()
+                    .x(d => x(d.name) + x.bandwidth()/2)
+                    .y(d => y(d.rank) + y.bandwidth()/2)
+
+                svg.append('g')
+                    .attr('transform', 'translate(0,' + 0 + ')')
+                    .call(d3.axisBottom(x).tickSize(height))
+                svg.append('g')
+                    .attr('transform', 'translate(' + width + ',0)')
+                    .call(d3.axisRight(y))
+                svg.append('g')
+                    .call(d3.axisLeft(y))
+
+                var driverLines = svg.selectAll('g.driverLine')
+                    .data(drivers)
+                    .enter().append('g')
+                    .attr('class', 'driverLine');
+                driverLines.append('path')
+                    .datum(d=>d.races)
+                    .attr('d', line)
+                    .attr('fill', 'none')
+                    .attr('stroke', (d,i) => color(i/25))
+                    .attr('stroke-width', 4)
+                    .on('mouseover', function(d) {
+                        d3.select(this).attr('stroke-width', 7)
+                    })
+                    .on('mouseout', function(d) {
+                        d3.select(this).attr('stroke-width', 4)
+                    })
+                driverLines.append('text')
+                    .attr('x', d => x(d.currentRace) + x.bandwidth()/2 + 7)
+                    .attr('y', d => y(d.currentRank) + y.bandwidth()/2 + 3)
+                    .text(d => d.name)
+
+                var circles = svg.selectAll('circle')
+                    .data(allRaces)
+                    .enter().append('circle')
+                    .attr('cx', d=> x(d.name) + x.bandwidth()/2)
+                    .attr('cy', d=> y(d.rank) + y.bandwidth()/2)
+                    .attr('r', 6)
+                    .attr('fill', d => {
+                        if (d.position == '1') return '#C98910';
+                        else if (d.position == '2') return '#A8A8A8';
+                        else if (d.position == '3') return '#965A38';
+                        else return 'none'
+                    })
+            })
+        
+    </script>
+</body>
